@@ -62,10 +62,6 @@ demandEvents.on('demandUpdated', (updatedDemand) => {
     io.emit('demandUpdated', updatedDemand);
 });
 
-allotEvent.on('allotDemand', (demandId) => {
-    io.emit('allotDemand', demandId);
-});
-
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
