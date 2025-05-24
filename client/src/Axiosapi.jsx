@@ -1,10 +1,13 @@
 import axios from "axios";
-const baseURL = import.meta.env.VITE_API_URL; // Adjust the port as needed
 
-export default axios.create({
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+const instance = axios.create({
     baseURL: baseURL,
     headers: {
-        'Content-Type': 'application/json',
-    },
+        'Content-Type': 'application/json'
+    }
 });
+
+export default instance;
 
