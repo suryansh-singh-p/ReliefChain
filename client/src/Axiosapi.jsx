@@ -1,6 +1,8 @@
 import axios from "axios";
-const port = 3000;
-const baseURL = `http://localhost:${port}`; // Adjust the port as needed
+import dotenv from 'dotenv';
+
+dotenv.config();
+const baseURL = process.env.REACT_APP_API_URL; // Adjust the port as needed
 
 export default axios.create({
     baseURL: baseURL,
