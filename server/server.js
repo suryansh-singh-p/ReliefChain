@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 const http = require('http');
 const demandEvents = require('./api/event/demandEvents');
-const allotEvent = require('./api/event/allotEvent');
 const dotenv = require('dotenv');
 
 // Load environment variables
