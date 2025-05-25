@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Demand = require('../models/demand');
+const Demand = require('../models/Demand.js');
 const demandEvents = require('../event/demandEvents');
 const auth = require('../middleware/auth');
 
