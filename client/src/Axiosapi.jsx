@@ -6,6 +6,7 @@ console.log(baseURL);
 const instance = axios.create({
     baseURL: baseURL,
     headers: {
+        'Access-Control-Allow-Origin': '*',
         'Content-Type': 'application/json'
     }
 });
