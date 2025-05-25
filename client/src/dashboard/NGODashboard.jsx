@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import axios from '../Axiosapi';
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3000');
+const socket = io(`${import.meta.env.VITE_API_URL}`);
 
 const NGODashboard = () => {
     const navigate = useNavigate();

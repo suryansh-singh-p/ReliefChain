@@ -38,7 +38,7 @@ const httpServer = http.createServer(app);
 // Socket.IO setup
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.FRONTEND_URL || "http://localhost:5173",
+        origin: process.env.FRONTEND_URL || '*',
         methods: ['GET', 'POST', 'PATCH']
     }
 });
@@ -68,7 +68,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
