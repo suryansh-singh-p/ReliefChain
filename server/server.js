@@ -13,7 +13,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: process.env.FRONTEND_URL,
     methods: ['GET', 'POST', 'PATCH']
 }));
 app.use(express.json());
@@ -41,7 +41,7 @@ const httpServer = http.createServer(app);
 // Socket.IO setup
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.FRONTEND_URL || '*',
+        origin: process.env.FRONTEND_URL,
         methods: ['GET', 'POST', 'PATCH']
     }
 });
