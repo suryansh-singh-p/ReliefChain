@@ -8,4 +8,4 @@ function getDistance(lat1, lon1, lat2, lon2) {
     const distance = rEarth * c;
     return distance;
 }
-module.exports = { getDistance };
+module.exports = { getDistance }; 
