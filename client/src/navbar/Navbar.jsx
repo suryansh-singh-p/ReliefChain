@@ -10,8 +10,8 @@ const Navbar = () => {
         window.location.href = '/login'; // Redirect to login page after logout
     };
     return (
-        <div>
-            <nav className="bg-[#575B33] p-4 flex justify-between items-center">
+        <div className="h-16"> {/* Add height to prevent content jump */}
+            <nav className="bg-[#575B33] p-4 flex justify-between items-center fixed top-0 left-0 right-0 z-50 shadow-lg">
                 <div className="text-white text-2xl font-bold">
                     <img src={Logo} alt="Logo" className="h-10 w-10 inline-block mr-2" />
                 </div>
@@ -31,11 +31,8 @@ const Navbar = () => {
                         </>
                     )}
                 </div>
-
-            
-
-        </nav>
-        </div >
+            </nav>
+        </div>
     );
 }
 export default Navbar;

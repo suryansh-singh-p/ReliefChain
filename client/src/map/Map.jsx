@@ -1,19 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import L from 'leaflet';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { isLoggedIn } from '../login/IsLoggedIn';
 import axios from '../Axiosapi';
 import { io } from 'socket.io-client';
-
+import demandCon from '../assets/demandCon.png';
 
 const socket = io(`${import.meta.env.VITE_API_URL}`);
 
-const Map = ({ lat = 55.505, lng = -0.09 }) => {
+const Map = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [demandData, setDemandData] = useState([]);
   const [loggedIn, setLoggedIn] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [newDemand, setNewDemand] = useState(null);
+
+
+  const { lat, lng, demandId } = location.state || {};
+
+  var demandIcon = L.icon({
+    iconUrl: demandCon,
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -10]
+  });
 
   useEffect(() => {
     const checkLogin = () => {
@@ -31,9 +41,9 @@ const Map = ({ lat = 55.505, lng = -0.09 }) => {
     if (loggedIn) {
       axios.get('/demand', {
         headers: {
-            Authorization:'Bearer '+localStorage.getItem('token')
+            Authorization:'Bearer ' + localStorage.getItem('token')
         }
-    })
+      })
         .then((response) => {
           const unresolvedDemands = response.data.demands.filter(
             demand => demand.status !== 'resolved'
@@ -52,72 +62,94 @@ const Map = ({ lat = 55.505, lng = -0.09 }) => {
   useEffect(() => {
     if (isLoading) return;
 
-    const map = L.map('map').setView([lat, lng], 13);
-
-    if (demandData.length === 0) {
-      L.marker([lat, lng])
-        .addTo(map)
-        .bindPopup('No unresolved demands available.')
-        .openPopup();
-      return () => {
-        map.remove();
-      };
+    let centerLat, centerLng;
+    let map;
+    
+    // Always prioritize the provided coordinates
+    if (lat && lng) {
+      centerLat = parseFloat(lat);
+      centerLng = parseFloat(lng);
+    } else if (demandData.length > 0) {
+      // Only use latest demand's location if no coordinates provided
+      const mostRecentDemand = demandData[demandData.length - 1];
+      const [lati, lngi] = mostRecentDemand.location.split(',').map(coord => parseFloat(coord.trim()));
+      if (lati && lngi) {
+        centerLat = lati;
+        centerLng = lngi;
+      }
+    } else {
+      // Fallback to default coordinates
+      centerLat = 0;
+      centerLng = 0;
     }
+
+    // Initialize map
+    map = L.map('map', {
+      center: [centerLat, centerLng],
+      zoom: 10
+    });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    demandData.forEach((demand) => {
-      const [lati, lngi] = demand.location.split(',').map(coord => parseFloat(coord));
-      if (lati && lngi) {
-        L.marker([lati, lngi])
+    // If specific coordinates are provided, show only that marker
+    if (lat && lng && demandId) {
+      // Find the demand by ID
+      const selectedDemand = demandData.find(demand => demand._id === demandId);
+
+      
+
+      if (selectedDemand) {
+        L.marker([centerLat, centerLng], {icon: demandIcon})
           .addTo(map)
           .bindPopup(`
             <div>
-              <strong>Item Name:</strong> ${demand.itemname || 'N/A'}<br />
-              <strong>Quantity:</strong> ${demand.quantity || 'N/A'}<br />
-              <strong>Description:</strong> ${demand.description || 'No description'}<br />
-              <strong>Contact:</strong> ${demand.contact || 'No contact'}<br />
-              <strong>Status:</strong> ${demand.status || 'pending'}
+              <strong>Item Name:</strong> ${selectedDemand.itemname || 'N/A'}<br />
+              <strong>Quantity:</strong> ${selectedDemand.quantity || 'N/A'}<br />
+              <strong>Description:</strong> ${selectedDemand.description || 'No description'}<br />
+              <strong>Contact:</strong> ${selectedDemand.contact || 'No contact'}<br />
+              <strong>Status:</strong> ${selectedDemand.status || 'pending'}
             </div>
           `)
           .openPopup();
       }
-    });
+    } else {
+      // Show all markers if no specific coordinates provided
+      demandData.forEach((demand) => {
+        const [lati, lngi] = demand.location.split(',').map(coord => parseFloat(coord.trim()));
+        if (lati && lngi) {
+          L.marker([lati, lngi], {icon: demandIcon})
+            .addTo(map)
+            .bindPopup(`
+              <div>
+                <strong>Item Name:</strong> ${demand.itemname || 'N/A'}<br />
+                <strong>Quantity:</strong> ${demand.quantity || 'N/A'}<br />
+                <strong>Description:</strong> ${demand.description || 'No description'}<br />
+                <strong>Contact:</strong> ${demand.contact || 'No contact'}<br />
+                <strong>Status:</strong> ${demand.status || 'pending'}
+              </div>
+            `);
+        }
+      });
+    }
 
     return () => {
-      map.remove();
+      if (map) {
+        map.remove();
+      }
     };
-  }, [demandData, lat, lng, isLoading]);
+  }, [demandData, lat, lng, demandId, isLoading]);
 
   useEffect(() => {
     socket.on('demandCreated', (newDemand) => {
       if (newDemand.status !== 'resolved') {
         setDemandData(prev => [...prev, newDemand]);
-
-        if (isLoading) {
-          const [lati, lngi] = newDemand.location.split(',').map(coord => parseFloat(coord));
-          if (lati && lngi) {
-            L.marker([lati, lngi])
-              .addTo(map)
-              .bindPopup(`
-              <div>
-                <strong>Item Name:</strong> ${newDemand.itemname || 'N/A'}<br />
-                <strong>Quantity:</strong> ${newDemand.quantity || 'N/A'}<br />
-                <strong>Description:</strong> ${newDemand.description || 'No description'}<br />
-                <strong>Contact:</strong> ${newDemand.contact || 'No contact'}<br />
-                <strong>Status:</strong> ${newDemand.status || 'pending'}
-              </div>
-            `)
-              .openPopup();
-          }
-        }
       }
     });
     
     return () => {
       socket.off('demandCreated');
     };
-  }, [isLoading]);
+  }, []);
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -125,10 +157,9 @@ const Map = ({ lat = 55.505, lng = -0.09 }) => {
 
   return (
     <div
-      id="map"
-      className="w-full h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px] rounded-lg shadow-lg z-0"
+      id="map" className='w-full h-[300px] sm:h-[400px] md:h-[500px] lg:h-[800px] rounded-lg shadow-lg z-0'
     />
-
   );
 };
+
 export default Map;

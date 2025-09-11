@@ -1,8 +1,9 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { isLoggedIn } from '../login/IsLoggedIn';
 import React, { useEffect, useState } from 'react';
 import axios from '../Axiosapi';
 import { io } from 'socket.io-client';
+import Map from '../map/Map';
 
 const socket = io(`${import.meta.env.VITE_API_URL}`);
 
@@ -10,8 +11,10 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const [deliveries, setDeliveries] = useState([]);
     const [ngoUsers, setNgoUsers] = useState([]);
+    const [activeNGOs, setActiveNGOs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [unrespondedDemands, setUnrespondedDemands] = useState([]);
 
     useEffect(() => {
         if (!isLoggedIn()) {
@@ -25,11 +28,12 @@ const Dashboard = () => {
 
         axios.get('user/ngo', {
             headers: {
-                Authorization:'Bearer '+localStorage.getItem('token')
+                Authorization: 'Bearer ' + localStorage.getItem('token')
             }
         })
             .then((response) => {
                 setNgoUsers(response.data.ngos);
+                setActiveNGOs(response.data.ngos.filter( ngo => ngo.ngoDetails.isActive === true ));
             })
             .catch((error) => {
                 console.error('Error fetching NGO users:', error);
@@ -38,15 +42,19 @@ const Dashboard = () => {
 
         axios.get('/demand', {
             headers: {
-                Authorization:'Bearer '+localStorage.getItem('token')
+                Authorization: 'Bearer ' + localStorage.getItem('token')
             }
         })
             .then((response) => {
                 const unresolvedDemands = response.data.demands.filter(
                     demand => demand.status !== 'resolved'
                 );
+                const unrespondedDemands = unresolvedDemands.filter(
+                    demand => demand.status === 'pending'
+                );
                 console.log('Demand Data:', response.data);
                 setDeliveries(unresolvedDemands);
+                setUnrespondedDemands(unrespondedDemands);
             })
             .catch((error) => {
                 console.error('Error fetching demand data:', error);
@@ -60,7 +68,7 @@ const Dashboard = () => {
     const handleModifyStatus = (itemId, newStatus) => {
         axios.patch(`/demand/${itemId}`, { status: newStatus }, {
             headers: {
-                Authorization:'Bearer '+localStorage.getItem('token')
+                Authorization: 'Bearer ' + localStorage.getItem('token')
             }
         })
             .then((response) => {
@@ -75,6 +83,26 @@ const Dashboard = () => {
                 console.error(`Error updating status for item ${itemId}:`, error);
                 alert('Failed to update status. Please try again.');
             });
+    };
+
+    const handleAutoAssignNGO = () => {
+        axios.post('/assign', {
+            unrespondedDemands,
+            activeNGOs
+        }, {
+            headers: {
+                Authorization: 'Bearer ' + localStorage.getItem('token')
+            }
+        }).then((response) => {
+            console.log('Auto-assign response:', response.data);
+            const autoAssignments = response.data.assignments;
+            for(let assignment of autoAssignments){
+                handleAssignNGO(assignment.demandId, assignment.ngoId);
+            }
+        }).catch((error) => {
+            console.error('Error auto-assigning NGO:', error);
+            alert('Failed to auto-assign NGO. Please try again.');
+        });
     };
 
     const handleAssignNGO = (itemId, ngoId) => {
@@ -93,7 +121,7 @@ const Dashboard = () => {
             }
         }, {
             headers: {
-                Authorization:'Bearer '+localStorage.getItem('token')
+                Authorization: 'Bearer ' + localStorage.getItem('token')
             }
         }).then((response) => {
             console.log(`[ngo patch] Delivery assigned to NGO ${selectedNGO.username}:`, response.data);
@@ -112,7 +140,7 @@ const Dashboard = () => {
             ngoId: selectedNGO._id
         }, {
             headers: {
-                Authorization:'Bearer '+localStorage.getItem('token')
+                Authorization: 'Bearer ' + localStorage.getItem('token')
             }
         }).then((response) => {
             console.log(`[demand patch] Delivery assigned to NGO ${selectedNGO.username}:`, response.data);
@@ -126,7 +154,7 @@ const Dashboard = () => {
             setDeliveries((prevDeliveries) => [...prevDeliveries, demand]);
         });
         socket.on('demandUpdated', (updatedDemand) => {
-            setDeliveries((prevDeliveries) => 
+            setDeliveries((prevDeliveries) =>
                 prevDeliveries.map(item => item._id === updatedDemand._id ? updatedDemand : item)
             );
         });
@@ -154,8 +182,8 @@ const Dashboard = () => {
                     <div className="text-red-500 text-4xl mb-4">⚠️</div>
                     <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Dashboard</h2>
                     <p className="text-gray-600">{error}</p>
-                    <button 
-                        onClick={() => window.location.reload()} 
+                    <button
+                        onClick={() => window.location.reload()}
                         className="mt-4 px-4 py-2 bg-[#575B33] text-white rounded hover:bg-[#444826] transition"
                     >
                         Retry
@@ -168,29 +196,76 @@ const Dashboard = () => {
     const total = deliveries.length;
     const pending = deliveries.filter(d => d.status === 'pending').length;
     const inProcess = deliveries.filter(d => d.status === 'in-process').length;
+  
+    
 
     return (
         <div className="dashboard">
             <h1 className="text-4xl font-bold text-[#575B33] ml-6 mt-2 mb-0">Dashboard</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 p-6">
+                <div>
+                    <h2 className="text-xl font-semibold text-[#575B33] text-center">Deliveries</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-4 p-6">
+                        <div className="bg-white shadow-lg rounded-lg p-4">
+                            <h2 className="text-xl font-semibold text-[#575B33]">{total}</h2>
+                            <p className="text-[#575B33]">Total Active Deliveries</p>
+                        </div>
+                        <div className="bg-white shadow-lg rounded-lg p-4">
+                            <h2 className="text-xl font-semibold text-[#575B33]">{pending}</h2>
+                            <p className="text-[#575B33]">Pending for NGO Assignment</p>
+                        </div>
+                        <div className="bg-white shadow-lg rounded-lg p-4">
+                            <h2 className="text-xl font-semibold text-[#575B33]">{deliveries.filter(d => d.createdAt > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}</h2>
+                            <p className="text-[#575B33]">Request in Last 24 Hours</p>
+                        </div>
+                        <div className="bg-white shadow-lg rounded-lg p-4">
+                            <h2 className="text-xl font-semibold text-[#575B33]">{
+                                (() => {
+                                    const respondedDemands = deliveries.filter(d => d.status !== 'pending');
+                                    if (respondedDemands.length === 0) return 0;
 
-            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
-                <div className="bg-white shadow-lg rounded-lg p-4">
-                    <h2 className="text-xl font-semibold text-[#575B33]">{total}</h2>
-                    <p className="text-[#575B33]">Total Active Deliveries</p>
+                                    const totalHours = respondedDemands.reduce((acc, demand) => {
+                                        const created = new Date(demand.createdAt);
+                                        const updated = new Date(demand.updatedAt);
+                                        const diffHours = (updated - created) / (1000 * 60 * 60);
+                                        return acc + diffHours;
+                                    }, 0);
+
+                                    return (totalHours / respondedDemands.length).toFixed(1);
+                                })()
+                            }</h2>
+                            <p className="text-[#575B33]">Average Response Time (Hours)</p>
+                        </div>
+                    </div>
                 </div>
-                <div className="bg-white shadow-lg rounded-lg p-4">
-                    <h2 className="text-xl font-semibold text-[#575B33]">{pending}</h2>
-                    <p className="text-[#575B33]">Pending</p>
-                </div>
-                <div className="bg-white shadow-lg rounded-lg p-4">
-                    <h2 className="text-xl font-semibold text-[#575B33]">{inProcess}</h2>
-                    <p className="text-[#575B33]">In Process</p>
+                <div>
+                    <h2 className="text-xl font-semibold text-[#575B33] text-center">NGO Overview</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-4 p-6">
+                        <div className="bg-white shadow-lg rounded-lg p-4">
+                            <h2 className="text-xl font-semibold text-[#575B33]">{ngoUsers.length}</h2>
+                            <p className="text-[#575B33]">Total NGOs</p>
+                        </div>
+                        <div className="bg-white shadow-lg rounded-lg p-4">
+                            <h2 className="text-xl font-semibold text-[#575B33]">{ngoUsers.filter(ngo => ngo.ngoDetails.assignedDemands === null).length}</h2>
+                            <p className="text-[#575B33]">Number of NGOs with no active deliveries</p>
+                        </div>
+                        <div className="bg-white shadow-lg rounded-lg p-4">
+                            <h2 className="text-xl font-semibold text-[#575B33]">{activeNGOs.length}</h2>
+                            <p className="text-[#575B33]">Active NGOs
+                            </p>
+                        </div>
+                        <div className="bg-white shadow-lg rounded-lg p-4">
+                            <h2 className="text-xl font-semibold text-[#575B33]">{total / ngoUsers.length}</h2>
+                            <p className="text-[#575B33]">Average Aid Fulfillment per NGO</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div className="p-6 bg-gray-100 min-h-screen">
                 <div className="bg-white rounded-lg shadow p-6">
                     <h2 className="text-xl font-semibold mb-4">Active Deliveries</h2>
+                    <button className="bg-[#575B33] text-white px-4 py-2 rounded-md mb-4" onClick={handleAutoAssignNGO}>Auto Assign NGO</button>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead>
@@ -212,13 +287,19 @@ const Dashboard = () => {
                                         <td className="py-2 font-medium text-[#575B33]">{item.itemname}</td>
                                         <td className="py-2">{item.description}</td>
                                         <td className="py-2">{item.quantity}</td>
-                                        <td className="py-2">{item.location}</td>
+                                        <td className="py-2">
+                                            
+                                            <button className="text-blue-500" onClick={() => {
+                                                const [lat, lng] = item.location.split(',').map(coord => coord.trim());
+                                                navigate('/map', { state: { lat, lng, demandId: item._id } });
+                                            }}>View on Map</button>
+                                        </td>
                                         <td className="py-2">{item.contact}</td>
                                         <td className="py-2">{item.username}</td>
                                         <td className="py-2">
                                             <span className={`text-white px-2 py-1 rounded-full text-xs ${item.status === 'pending' ? 'bg-red-500' :
-                                                    item.status === 'in-process' ? 'bg-amber-400' :
-                                                        'bg-gray-400'
+                                                item.status === 'in-process' ? 'bg-amber-400' :
+                                                    'bg-gray-400'
                                                 }`}>
                                                 {item.status}
                                             </span>
@@ -239,7 +320,7 @@ const Dashboard = () => {
                                                     className="text-xs border border-gray-300 rounded px-2 py-1 text-[#575B33]"
                                                 >
                                                     <option value="" disabled>Assign NGO</option>
-                                                    {ngoUsers.map((ngo) => (
+                                                    {activeNGOs.map((ngo) => (
                                                         <option key={ngo._id} value={ngo.username}>
                                                             {ngo.name} ({ngo.username})
                                                         </option>

@@ -12,6 +12,7 @@ const NGODashboard = () => {
     const [isActive, setIsActive] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [optimalRoute, setOptimalRoute] = useState(null);
 
     useEffect(() => {
         if (!isLoggedIn()) {
@@ -69,11 +70,11 @@ const NGODashboard = () => {
             ...ngoDetails,
             isActive: !isActive
         };
-        axios.patch(`/user/${localStorage.getItem('userId')}`, 
-            { ngoDetails: updatedDetails }, 
+        axios.patch(`/user/${localStorage.getItem('userId')}`,
+            { ngoDetails: updatedDetails },
             {
                 headers: {
-                    Authorization:'Bearer '+localStorage.getItem('token')
+                    Authorization: 'Bearer ' + localStorage.getItem('token')
                 }
             }
         )
@@ -85,6 +86,25 @@ const NGODashboard = () => {
                 console.error('Error toggling active status:', err);
                 alert('Failed to update status. Please try again.');
             });
+    };
+
+    const handleOptimizeRoute = () => {
+        axios.post('/optimise/get-optimal-route', {
+            ngo: {
+                _id: localStorage.getItem('userId'),
+                ngoDetails: JSON.parse(localStorage.getItem('ngoDetails'))
+            },
+            demands: deliveries
+        }, {
+            headers: {
+                Authorization: 'Bearer ' + localStorage.getItem('token')
+            }
+        }).then((response) => {
+            setOptimalRoute(response.data);
+        }).catch((error) => {
+            console.error('Error optimizing route:', error);
+            alert('Failed to optimize route. Please try again.');
+        });
     };
 
     useEffect(() => {
@@ -126,8 +146,8 @@ const NGODashboard = () => {
                     <div className="text-red-500 text-4xl mb-4">⚠️</div>
                     <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Dashboard</h2>
                     <p className="text-gray-600">{error}</p>
-                    <button 
-                        onClick={() => window.location.reload()} 
+                    <button
+                        onClick={() => window.location.reload()}
                         className="mt-4 px-4 py-2 bg-[#575B33] text-white rounded hover:bg-[#444826] transition"
                     >
                         Retry
@@ -203,7 +223,38 @@ const NGODashboard = () => {
                         )}
                     </div>
                 </div>
+                <div className="bg-white rounded-lg shadow p-6 mt-6">
+                    <button className="bg-[#575B33] text-white p-6 px-4 py-2 rounded-md mb-4" onClick={handleOptimizeRoute}>Optimize Route</button>
+                    {optimalRoute && (
+                        <div className="bg-white rounded-lg shadow p-6 mt-0">
+                            <h2 className="text-xl font-semibold mb-4 text-[#575B33]">Optimal Route</h2>
+                            <ol className="list-decimal pl-6">
+                                {optimalRoute.orderedIds.map((id, idx) => {
+                                    const delivery = deliveries.find(d => d._id === id);
+                                    if (!delivery) return null;
+                                    return (
+                                        <li key={id} className="mb-2">
+                                            <div className="p-3 bg-gray-50 rounded shadow-sm">
+                                                <span className="font-bold text-[#575B33]">{idx === 0 ? "Start (NGO)" : `Stop ${idx}`}</span>
+                                                <div className="text-sm text-gray-700">
+                                                    <div><span className="font-semibold">Item:</span> {delivery.itemname}</div>
+                                                    <div><span className="font-semibold">Location:</span> {delivery.location}</div>
+                                                    <div><span className="font-semibold">Description:</span> {delivery.description}</div>
+                                                    <div><span className="font-semibold">Contact:</span> {delivery.contact}</div>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ol>
+                            <div className="mt-4 text-lg text-[#575B33] font-semibold">
+                                Total Distance: {optimalRoute.totalDistance.toFixed(2)} km
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
+
         </div>
     );
 };

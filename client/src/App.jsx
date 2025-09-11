@@ -7,9 +7,8 @@ import Navbar from './navbar/Navbar'
 import Map from './map/Map'
 import HandleDashboard from './dashboard/handleDashboard'
 import { Navigate } from 'react-router-dom'
+
 function App() {
-
-
   return (
     <Fragment>
       <BrowserRouter>

@@ -103,7 +103,6 @@ const Login = () => {
                                 <option value="admin">Admin</option>
                                 <option value="user">User</option>
                                 <option value="ngo">NGO Admin</option>
-                                <option value="volunteer">Volunteer</option>
                             </select>
                         </div>
 
